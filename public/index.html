@@ -1,0 +1,3399 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>视频投放智能体</title>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-subtle: #fafafc;
+  --fg: #1d1d1f;
+  --muted: #6e6e73;
+  --border: #d2d2d7;
+  --border-strong: #86868b;
+  --accent: #0071e3;
+  --accent-hover: #005ec3;
+  --accent-muted: #e8f4fd;
+  --green: #1e7b3c;
+  --green-bg: #e8f8ed;
+  --warning: #b06d00;
+  --warning-bg: #fff3e0;
+  --error: #c41e1e;
+  --error-bg: #ffeeed;
+  --nav-bg: #1d1d1f;
+  --nav-fg: #f5f5f7;
+  --nav-muted: #a1a1a6;
+  --nav-active-bg: rgba(0, 113, 227, 0.18);
+  --nav-width: 244px;
+  --topbar-h: 56px;
+  --bottom-h: 68px;
+  --right-panel-expanded: 360px;
+  --right-panel-collapsed: 66px;
+  --right-panel-w: var(--right-panel-collapsed);
+  --font-display: "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-body: "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Consolas", monospace;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: grid;
+  grid-template-columns: var(--nav-width) minmax(0, 1fr);
+  grid-template-rows: var(--topbar-h) minmax(0, 1fr) var(--bottom-h);
+  grid-template-areas:
+    "nav topbar"
+    "nav main"
+    "nav bottom";
+}
+
+body.summary-expanded {
+  --right-panel-w: var(--right-panel-expanded);
+}
+
+#left-nav { grid-area: nav; background: var(--nav-bg); color: var(--nav-fg); }
+#topbar { grid-area: topbar; background: var(--surface); border-bottom: 1px solid var(--border); }
+#main-content { grid-area: main; overflow: auto; padding: 20px calc(24px + var(--right-panel-w)) 28px 24px; }
+#right-panel {
+  position: fixed;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: var(--bottom-h);
+  width: var(--right-panel-w);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+#bottom-bar { grid-area: bottom; background: var(--surface); border-top: 1px solid var(--border); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mono { font-family: var(--font-mono); }
+.hidden { display: none !important; }
+
+#left-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 12px;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 18px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nav-brand-icon {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.nav-brand-text {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.nav-group-label {
+  padding: 8px 12px 4px;
+  color: var(--nav-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-save-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 10px;
+  color: #d6f5df;
+  font-size: 12px;
+}
+
+.save-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #35c759;
+  box-shadow: 0 0 0 4px rgba(53, 199, 89, 0.14);
+}
+
+.nav-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--nav-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-item:hover,
+.nav-item:focus-visible {
+  color: var(--nav-fg);
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
+.nav-item.active {
+  color: #fff;
+  background: var(--nav-active-bg);
+}
+
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 22px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+}
+
+.nav-item i { width: 18px; height: 18px; flex-shrink: 0; }
+
+.nav-item-label {
+  min-width: 0;
+  flex: 1;
+}
+
+.nav-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #35c759;
+  background: rgba(53, 199, 89, 0.14);
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.nav-item.completed .nav-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.nav-item.active .step-num {
+  background: var(--accent);
+  color: #fff;
+}
+
+.nav-footer {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+}
+
+.tb-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tb-label {
+  font-size: 11.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.tb-value {
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tb-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+
+.tb-spacer { flex: 1; }
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.top-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  grid-auto-rows: minmax(28px, auto);
+  gap: 8px 10px;
+  align-items: center;
+  justify-content: end;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-badge.processing { background: var(--warning-bg); color: var(--warning); }
+.status-badge.saved { background: var(--green-bg); color: var(--green); }
+.status-badge.draft { background: #f0f0f2; color: var(--muted); }
+.status-badge.failed { background: var(--error-bg); color: var(--error); }
+.status-badge.info { background: var(--accent-muted); color: var(--accent); }
+
+.screen { display: none; animation: fadeIn 0.2s ease; }
+.screen.active { display: block; }
+
+.screen-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  letter-spacing: -0.02em;
+}
+
+.screen-lead {
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.card-header i { width: 18px; height: 18px; color: var(--muted); }
+
+.card-subtitle {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 14px;
+}
+
+.banner.info { border-color: #cfe3fb; background: #f7fbff; }
+.banner.processing { border-color: #f0d1a2; background: #fffbf3; }
+
+.banner-title {
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.banner-body {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.summary-grid,
+.form-row,
+.metric-grid,
+.rec-grid,
+.config-grid,
+.platform-grid,
+.asset-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.summary-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.form-row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.form-row.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.form-row.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.optional {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+input[type="text"],
+input[type="url"],
+input[type="number"],
+input[type="search"],
+textarea,
+select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.12);
+}
+
+textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+}
+
+.form-hint {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.btn i { width: 16px; height: 16px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-outline { background: var(--surface); border: 1px solid var(--border-strong); color: var(--fg); }
+.btn-outline:hover { background: var(--surface-subtle); }
+.btn-ghost { background: transparent; color: var(--muted); }
+.btn-ghost:hover { background: rgba(0, 0, 0, 0.04); color: var(--fg); }
+.btn-sm { padding: 6px 10px; font-size: 12px; }
+.btn-lg { padding: 10px 18px; font-size: 14px; }
+.btn-danger { background: var(--error-bg); color: var(--error); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tag-success { background: var(--green-bg); color: var(--green); }
+.tag-warning { background: var(--warning-bg); color: var(--warning); }
+.tag-error { background: var(--error-bg); color: var(--error); }
+.tag-info { background: var(--accent-muted); color: var(--accent); }
+.tag-neutral { background: #f0f0f2; color: var(--muted); }
+
+.shopify-search,
+.asset-search {
+  margin-bottom: 10px;
+}
+
+.shopify-search input,
+.asset-search input {
+  display: block;
+}
+
+.product-card,
+.summary-card,
+.config-card,
+.upload-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+}
+
+.product-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+}
+
+.product-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #e6ddd2, #cdb8a4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #57483d;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.product-info { flex: 1; min-width: 0; }
+.product-title { font-weight: 600; margin-bottom: 4px; }
+.product-meta { display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: 12px; }
+
+.summary-card {
+  padding: 12px 14px;
+}
+
+.summary-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.summary-list {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.summary-list strong { color: var(--fg); }
+
+.tabbar-mini {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  background: #f0f0f2;
+  margin-bottom: 12px;
+}
+
+.tabbar-mini button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 7px 12px;
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tabbar-mini button.active {
+  background: #fff;
+  color: var(--fg);
+  box-shadow: var(--shadow-sm);
+}
+
+.md-dual-grid,
+.generated-result-list,
+.token-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.md-dual-grid {
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+}
+
+#md-panel-file,
+#md-panel-text {
+  display: flex;
+  flex-direction: column;
+}
+
+#md-panel-file .upload-zone,
+#md-panel-text textarea {
+  min-height: 168px;
+}
+
+#md-panel-text textarea {
+  height: 168px;
+}
+
+.md-history-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.md-history-item,
+.generated-result-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+  padding: 12px;
+}
+
+.md-history-meta,
+.generated-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: var(--muted);
+  font-size: 11.5px;
+  margin-top: 6px;
+}
+
+.generated-result-list {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.md-history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.md-history-item strong {
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.md-history-item .generated-result-actions {
+  margin-top: 0;
+}
+
+.generated-result-thumb {
+  min-height: 132px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #dde7f4, #f7eadb);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 12px;
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.generated-result-item video,
+.generated-result-item img {
+  width: 100%;
+  border-radius: var(--radius);
+}
+
+.generated-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.token-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.token-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px;
+}
+
+.token-label {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.token-value {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-display);
+}
+
+.token-note {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+  padding: 24px;
+  text-align: center;
+}
+
+.upload-zone label {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.upload-zone i {
+  width: 28px;
+  height: 28px;
+  color: var(--muted);
+}
+
+.upload-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.upload-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.upload-item strong { font-size: 12.5px; }
+.upload-item span { color: var(--muted); font-size: 11.5px; }
+
+.upload-item .actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.field-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.generator-shell {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.2fr 1fr;
+}
+
+.result-placeholder {
+  min-height: 180px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #f8fafc, #eef3fa);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.progress-bar {
+  width: 220px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: #ececf0;
+  overflow: hidden;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #4aa3ff);
+}
+
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.tab-item {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-pill);
+  padding: 8px 12px;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab-item[aria-selected="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-muted);
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.asset-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.asset-option {
+  position: relative;
+}
+
+.asset-checkbox {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.asset-card {
+  display: block;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.asset-card:hover,
+.asset-checkbox:focus + .asset-card {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.12);
+}
+
+.asset-checkbox:checked + .asset-card {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.2);
+}
+
+.asset-thumb {
+  height: 180px;
+  background: linear-gradient(135deg, #e9edf3, #cfd7e2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  color: #3e4d62;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.asset-type-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.asset-info {
+  padding: 10px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.asset-title { font-weight: 600; font-size: 12.5px; margin-bottom: 4px; }
+.asset-code { color: var(--muted); font-size: 11px; font-family: var(--font-mono); }
+.asset-meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+.platform-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.platform-card {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.platform-card.enabled {
+  border-color: var(--accent);
+  background: #fbfdff;
+}
+
+.platform-card.disabled { opacity: 0.68; }
+
+.platform-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.platform-name { font-weight: 600; }
+.platform-specs { color: var(--muted); font-size: 12px; line-height: 1.65; }
+
+.switch-btn {
+  width: 42px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.switch-btn::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.switch-btn[aria-checked="true"] { background: var(--accent); }
+.switch-btn[aria-checked="true"]::after { left: 21px; }
+
+.video-result-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.video-result-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.vr-preview {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, #20252f, #39475f);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.play-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+}
+
+.vr-ribbon {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+
+.vr-info { padding: 14px; }
+
+.vr-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.vr-code {
+  font-family: var(--font-mono);
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.vr-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+
+.vr-meta span:nth-child(odd) { color: var(--muted); font-size: 12px; }
+.vr-meta span:nth-child(even) { font-weight: 600; font-size: 12px; }
+
+.vr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.detail-block {
+  border-top: 1px solid var(--border);
+  padding: 12px 14px 14px;
+}
+
+.detail-block details + details { margin-top: 8px; }
+.detail-block summary { cursor: pointer; font-weight: 600; list-style: none; }
+.detail-block summary::-webkit-details-marker { display: none; }
+.detail-list { margin-top: 8px; display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+
+.rec-grid {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.rec-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px;
+}
+
+.rec-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.rec-title { font-weight: 600; }
+.rec-body { color: var(--muted); font-size: 12.5px; }
+
+.data-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.data-table th,
+.data-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.data-table th {
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.data-table tr:last-child td { border-bottom: 0; }
+.data-table tr:hover td { background: #fbfdff; }
+
+.metric-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  margin-bottom: 14px;
+}
+
+.metric-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 12px 14px;
+}
+
+.metric-label { color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+.metric-value { font-family: var(--font-mono); font-size: 20px; font-weight: 700; }
+.metric-change { margin-top: 2px; font-size: 11px; }
+.metric-change.up { color: var(--green); }
+.metric-change.down { color: var(--error); }
+.metric-change.neutral { color: var(--muted); }
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 10px;
+  flex-wrap: wrap;
+}
+
+.table-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.table-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.table-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.config-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.config-card {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.config-top strong { display: block; margin-bottom: 3px; }
+.config-body { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+.config-actions { display: flex; gap: 8px; margin-top: auto; flex-wrap: wrap; }
+
+.data-panel-gap {
+  margin-top: 28px;
+}
+
+#right-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+}
+
+.summary-rail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 12px;
+}
+
+.summary-toggle {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+  color: var(--fg);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+  align-self: flex-end;
+}
+
+.summary-toggle i {
+  width: 18px;
+  height: 18px;
+}
+
+.summary-toggle:hover {
+  background: #ececef;
+}
+
+.summary-content {
+  display: none;
+  flex: 1;
+  overflow: auto;
+}
+
+body.summary-expanded .summary-content {
+  display: block;
+}
+
+.summary-mini { display: none !important; }
+
+.rp-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.rp-section:last-child {
+  border-bottom: 0;
+  margin-bottom: 0;
+}
+
+.rp-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 6px 0;
+}
+
+.rp-label {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.rp-value {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.rp-note {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.rp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#bottom-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+}
+
+.bb-left,
+.bb-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bb-spacer { flex: 1; }
+.step-hint { color: var(--muted); font-size: 12px; }
+
+#screen-03 .platform-grid + .card {
+  margin-top: 28px;
+}
+
+#screen-06 #token-grid {
+  margin-top: 18px;
+}
+
+#page-size-select {
+  height: 32px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+
+.sync-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.34);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
+}
+
+.modal-backdrop.open {
+  display: flex;
+}
+
+.modal {
+  width: min(720px, 100%);
+  max-height: min(90vh, 820px);
+  overflow: auto;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+  padding: 18px 20px 20px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.modal-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.modal-grid .full {
+  grid-column: 1 / -1;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.modal-status {
+  min-height: 20px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.modal-status.success { color: var(--green); }
+.modal-status.error { color: var(--error); }
+.modal-status.info { color: var(--accent); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1200px) {
+  body {
+    grid-template-columns: var(--nav-width) minmax(0, 1fr);
+    grid-template-areas:
+      "nav topbar"
+      "nav main"
+      "nav bottom";
+  }
+
+  #right-panel { display: none; }
+}
+</style>
+</head>
+<body>
+
+<nav id="left-nav" aria-label="主导航">
+  <div class="nav-brand">
+    <div class="nav-brand-icon">V</div>
+    <div class="nav-brand-text">视频投放<br>智能体</div>
+  </div>
+
+  <div class="nav-group-label">数据面板</div>
+  <div class="nav-list">
+    <button class="nav-item" data-screen="06">
+      <i data-lucide="bar-chart-3"></i>
+      <span class="nav-item-label">数据记录</span>
+    </button>
+  </div>
+
+  <div class="nav-group-label">生成流程</div>
+  <div class="nav-save-status"><span class="save-dot"></span><span id="nav-save-status">自动保存 · 已保存</span></div>
+  <div class="nav-list">
+    <button class="nav-item" data-screen="01" aria-current="step">
+      <span class="step-num">1</span>
+      <i data-lucide="file-text"></i>
+      <span class="nav-item-label">需求设定</span>
+      <span class="nav-check" aria-hidden="true">✓</span>
+    </button>
+    <button class="nav-item" data-screen="02">
+      <span class="step-num">2</span>
+      <i data-lucide="images"></i>
+      <span class="nav-item-label">选择素材</span>
+      <span class="nav-check" aria-hidden="true">✓</span>
+    </button>
+    <button class="nav-item" data-screen="03">
+      <span class="step-num">3</span>
+      <i data-lucide="monitor-smartphone"></i>
+      <span class="nav-item-label">平台适配</span>
+      <span class="nav-check" aria-hidden="true">✓</span>
+    </button>
+    <button class="nav-item" data-screen="04">
+      <span class="step-num">4</span>
+      <i data-lucide="video"></i>
+      <span class="nav-item-label">视频结果</span>
+      <span class="nav-check" aria-hidden="true">✓</span>
+    </button>
+    <button class="nav-item" data-screen="05">
+      <span class="step-num">5</span>
+      <i data-lucide="lightbulb"></i>
+      <span class="nav-item-label">投放建议</span>
+      <span class="nav-check" aria-hidden="true">✓</span>
+    </button>
+  </div>
+
+  <div class="nav-footer">
+    <div class="nav-group-label">系统</div>
+    <button class="nav-item" data-screen="07">
+      <i data-lucide="settings-2"></i>
+      系统配置
+    </button>
+  </div>
+</nav>
+
+<header id="topbar">
+  <div class="tb-group">
+    <span class="tb-label">当前任务</span>
+    <span class="tb-value" id="topbar-task-name">2026 春季客厅单品视频投放</span>
+  </div>
+  <div class="tb-sep"></div>
+  <div class="tb-group">
+    <span class="tb-label">Shopify 商品</span>
+    <span class="tb-value" id="topbar-product">SKU: FL-3012-A - Arhaus 风扶手椅</span>
+  </div>
+  <div class="tb-sep"></div>
+  <div class="tb-group">
+    <span class="tb-label">素材包编码</span>
+    <span class="tb-value mono" id="topbar-pack-code">VP-2026-0519-A3F</span>
+  </div>
+  <div class="tb-spacer"></div>
+  <div class="badge-row" id="topbar-badges"></div>
+</header>
+
+<main id="main-content">
+  <section id="screen-01" class="screen">
+    <div class="screen-title">需求设定</div>
+    <div class="screen-lead">本轮重点补齐参考视频输入方式、风格下拉、MD 双输入模式，以及支持自定义时长。</div>
+
+    <div class="card">
+      <div class="card-header">
+        <i data-lucide="shopping-bag"></i>
+        Shopify 商品选择
+        <span class="card-subtitle">已选 1 件</span>
+      </div>
+      <div class="shopify-search">
+        <input type="search" placeholder="搜索 SKU 或商品标题" value="Arhaus">
+      </div>
+      <div class="product-card">
+        <div class="product-thumb">A</div>
+        <div class="product-info">
+          <div class="product-title">Arhaus 风扶手椅 - 深灰羊毛面料</div>
+          <div class="product-meta">
+            <span>SKU: FL-3012-A</span>
+            <span>变体: 3</span>
+            <span>已有素材: 8 件</span>
+            <span>店铺: arhaus-home.myshopify.com</span>
+          </div>
+        </div>
+        <span class="tag tag-success">已选中</span>
+      </div>
+    </div>
+
+    <div class="form-row two">
+      <div class="card">
+        <div class="card-header"><i data-lucide="clapperboard"></i> 竞品参考链接<span class="optional">可选</span></div>
+        <div>
+          <label>竞品视频链接</label>
+          <input type="url" value="https://www.youtube.com/watch?v=competitor_home_furniture_demo" placeholder="https://youtube.com/watch?v=...">
+        </div>
+        <div style="margin-top:12px;">
+          <label>竞品链接</label>
+          <input type="url" value="https://www.westelm.com/products/upholstered-accent-chair-demo" placeholder="https://competitor.com/product/...">
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><i data-lucide="upload"></i> MP4 视频上传 <span class="optional">可选</span></div>
+        <div class="upload-zone">
+          <label for="mp4-upload-input">
+            <i data-lucide="file-video"></i>
+            <strong>上传参考 MP4 视频</strong>
+            <span class="form-hint">支持 .mp4，最大 500 MB。上传后可与竞品链接一起参与风格分析。</span>
+          </label>
+          <input id="mp4-upload-input" class="sr-only" type="file" accept=".mp4,video/mp4">
+        </div>
+        <div class="upload-list" id="mp4-upload-list"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i data-lucide="palette"></i> 风格方向配置</div>
+      <div class="form-row two">
+        <div>
+          <label for="style-library-select">风格库选择</label>
+          <select id="style-library-select">
+            <option selected>Arhaus 风格</option>
+            <option>Povison 风格</option>
+            <option>MOD Lighting</option>
+            <option>AI 总结竞品风格</option>
+            <option>其它风格</option>
+          </select>
+          <div class="form-hint" id="style-library-hint">当前选择偏暖色、自然材质和居家氛围，偏 Arhaus 路线。</div>
+        </div>
+        <div>
+          <label for="preset-style-select">预设风格</label>
+          <select id="preset-style-select">
+            <option selected>带人物互动场景</option>
+            <option>空镜展示</option>
+            <option>产品细节特写</option>
+            <option>UGC 混剪</option>
+            <option>其它预设</option>
+          </select>
+          <div class="form-hint">选中后会同步更新右侧任务摘要中的风格信息。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i data-lucide="file-text"></i> MD 需求文档<span class="optional">品牌规范 / 卖点 / 禁用词/ 脚本要求</span></div>
+      <div class="md-dual-grid">
+        <div id="md-panel-file">
+          <label>上传 MD 文件</label>
+          <div class="upload-zone">
+            <label for="md-upload-input">
+              <i data-lucide="upload-cloud"></i>
+              <strong>拖拽 .md 文件到此处，或点击上传</strong>
+              <span class="form-hint">支持 Markdown 文件，最大 5 MB。上传后会进入生成前置校验。</span>
+            </label>
+            <input id="md-upload-input" class="sr-only" type="file" accept=".md,text/markdown">
+          </div>
+          <div class="upload-list" id="md-upload-list"></div>
+        </div>
+        <div id="md-panel-text">
+          <label for="md-inline-text">直接输入需求内容</label>
+          <textarea id="md-inline-text" placeholder="请输入品牌规则、产品卖点、禁用词、视频脚本方向、场景要求、目标用户、CTA 要求、字幕语言要求..."></textarea>
+          <div class="form-hint">品牌规则、产品卖点、禁用词、视频脚本方向、场景要求、目标用户、CTA 要求都会作为 AI 生成前置需求。</div>
+        </div>
+      </div>
+      <div class="banner info" id="md-merge-banner" style="display:none; margin-top:12px;">
+        <div>
+          <div class="banner-title">已检测到双输入来源</div>
+          <div class="banner-body">上传的 MD 文件与文本框内容将一起作为生成前置需求使用。</div>
+        </div>
+        <span class="tag tag-info">合并使用</span>
+      </div>
+      <div style="margin-top:14px;">
+        <div class="card-header" style="margin-bottom:8px;"><i data-lucide="history"></i> 以往使用过的 MD 文件</div>
+        <div class="md-history-grid" id="md-history-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-02" class="screen">
+    <div class="screen-title">选择素材</div>
+    <div class="screen-lead">素材来源结构保留，右侧摘要会持续联动已选数量。</div>
+
+    <div class="tab-bar" role="tablist" aria-label="素材来源">
+      <button class="tab-item" type="button" role="tab" aria-selected="true" data-tab="shopify">Shopify 已有素材 8</button>
+      <button class="tab-item" type="button" role="tab" aria-selected="false" data-tab="history">历史素材 23</button>
+      <button class="tab-item" type="button" role="tab" aria-selected="false" data-tab="upload">上传新素材</button>
+      <button class="tab-item" type="button" role="tab" aria-selected="false" data-tab="image">生成图片素材</button>
+      <button class="tab-item" type="button" role="tab" aria-selected="false" data-tab="video">生成视频片段</button>
+    </div>
+
+    <div class="tab-panel active" id="panel-shopify">
+      <div class="asset-search">
+        <input type="search" placeholder="搜索素材编码、标题或来源" value="Arhaus 扶手椅">
+      </div>
+      <div class="asset-grid" id="asset-grid-shopify"></div>
+    </div>
+
+    <div class="tab-panel" id="panel-history">
+      <div class="card">
+        <div class="form-row four">
+          <div><label>SKU</label><select><option>FL-3012-A</option><option>FL-3012-B</option></select></div>
+          <div><label>平台</label><select><option>全部平台</option><option>Facebook</option><option>Google Ads</option></select></div>
+          <div><label>风格</label><select><option>Arhaus</option><option>Povison</option></select></div>
+          <div><label>表现标签</label><select><option>高 CTR</option><option>高 ROAS</option><option>建议重剪</option></select></div>
+        </div>
+      </div>
+      <div class="asset-grid" id="asset-grid-history"></div>
+    </div>
+
+    <div class="tab-panel" id="panel-upload">
+      <div class="generator-shell">
+        <div class="card">
+          <div class="card-header"><i data-lucide="folder-up"></i> 上传图片或视频素材</div>
+          <div class="upload-zone">
+            <label for="asset-upload-input">
+              <i data-lucide="upload"></i>
+              <strong>点击上传图片或视频素材</strong>
+              <span class="form-hint">支持 JPG / PNG / MP4 / MOV。上传后会加入当前素材池。</span>
+            </label>
+            <input id="asset-upload-input" class="sr-only" type="file" accept="image/*,video/*" multiple>
+          </div>
+          <div class="upload-list" id="asset-upload-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><i data-lucide="list-video"></i> 当前上传预览</div>
+          <div class="summary-list">
+            <div><strong>UPL-201</strong> 图片，品牌场景拍摄，状态：已加入候选池</div>
+            <div><strong>UPL-202</strong> 视频片段，镜头时长6 秒，状态：待人工标注</strong>
+            <div><strong>UPL-203</strong> 图片，面料细节，状态：可选中</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="panel-image">
+      <div class="generator-shell">
+        <div class="card">
+          <div class="card-header"><i data-lucide="image-plus"></i> 生成图片素材</div>
+          <div class="form-row two">
+            <div>
+              <label>图片生成模型</label>
+              <select style="margin-bottom:8px;"><option selected>Ideogram 2.0</option><option>Flux 1.1 Pro</option></select>
+            </div>
+            <div>
+              <label>图片比例</label>
+              <select><option selected>1:1</option><option>4:5</option><option>16:9</option></select>
+            </div>
+            <div>
+              <label>分辨率</label>
+              <select style="margin-bottom:8px;"><option selected>1024 × 1024</option><option>1080 × 1350</option><option>1080 × 1920</option><option>2048 × 2048</option></select>
+            </div>
+            <div>
+              <label>生成数量</label>
+              <select><option>2 张</option><option selected>4 张</option><option>6 张</option></select>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <label for="image-ai-prompt">AI 生成提示词</label>
+            <textarea id="image-ai-prompt">Arhaus 风格客厅场景，暖色木地板，扶手椅置于窗边，质感柔和自然，突出羊毛面料纹理。</textarea>
+            <div class="form-hint">提示词会直接用于 AI 图片生成，本次默认返回 4 张结果。</div>
+          </div>
+          <div style="margin-top:12px;"><button class="btn btn-primary" type="button">开始生成图片</button></div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:12px;">
+            <div class="card-header"><i data-lucide="gallery-horizontal-end"></i> 生成结果预览</div>
+            <div class="generated-result-list" id="generated-image-results"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="panel-video">
+      <div class="generator-shell">
+        <div class="card">
+          <div class="card-header"><i data-lucide="clapperboard"></i> 生成视频片段</div>
+          <div class="form-row two">
+            <div>
+              <label>片段时长</label>
+              <select><option>4 秒</option><option selected>6 秒</option><option>8 秒</option></select>
+            </div>
+            <div>
+              <label>视频比例</label>
+              <select><option>9:16</option><option selected>1:1</option><option>16:9</option></select>
+            </div>
+            <div>
+              <label>视频生成模型</label>
+              <select><option selected>Runway Gen-4</option><option>Pika 2.2</option><option>Luma Ray 2</option></select>
+            </div>
+            <div>
+              <label>分辨率</label>
+              <select><option>720p</option><option selected>1080p</option><option>2K</option><option>4K</option></select>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <label for="video-ai-prompt">AI 生成提示词</label>
+            <textarea id="video-ai-prompt">椅背缓慢旋转约 45 度，镜头从面料近景过渡到整体轮廓，适合做开场 4-6 秒片段。</textarea>
+            <div class="form-hint">该提示词会用于生成视频片段，可直接加入当前素材选择。</div>
+          </div>
+          <div style="margin-top:12px;"><button class="btn btn-primary" type="button">开始生成视频片段</button></div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:12px;">
+            <div class="card-header"><i data-lucide="film"></i> 片段结果预览</div>
+            <div class="generated-result-list" id="generated-video-results"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-03" class="screen">
+    <div class="screen-title">平台适配</div>
+    <div class="screen-lead">平台卡片可整块点击，开关使用真实 role="switch" 语义，支持键盘和鼠标一致操作。</div>
+    <div class="platform-grid" id="platform-grid"></div>
+    <div class="card">
+      <div class="card-header"><i data-lucide="sliders"></i> 视频参数</div>
+      <div class="form-row four">
+        <div>
+          <label for="video-duration">时长</label>
+          <select id="video-duration">
+            <option>15 秒</option>
+            <option selected>30 秒</option>
+            <option>45 秒</option>
+            <option>60 秒</option>
+            <option>自定义</option>
+          </select>
+        </div>
+        <div id="custom-duration-wrap" class="hidden">
+          <label for="custom-duration-input">自定义时长</label>
+          <input id="custom-duration-input" type="number" min="5" max="180" step="1" value="75">
+          <div class="form-hint">请输入 5 - 180 秒之间的正整数。</div>
+        </div>
+        <div>
+          <label for="video-ratio">主比例</label>
+          <select id="video-ratio">
+            <option>9:16</option>
+            <option selected>1:1</option>
+            <option>16:9</option>
+            <option>4:5</option>
+          </select>
+        </div>
+        <div>
+          <label for="video-resolution">清晰度</label>
+          <select id="video-resolution">
+            <option>1080p</option>
+            <option selected>2K</option>
+            <option>4K</option>
+          </select>
+        </div>
+        <div>
+          <label for="text-model">文本分析模型</label>
+          <select id="text-model">
+            <option selected>OpenRouter · Claude 3.7 Sonnet</option>
+            <option>OpenRouter · GPT-4.1</option>
+            <option>OpenRouter · Gemini 2.5 Flash</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-hint" style="margin-top:10px;">这些参数会同步到平台导出版本、右侧任务摘要和视频结果卡片中。</div>
+    </div>
+    <div class="card">
+      <div class="card-header"><i data-lucide="monitor-play"></i> 平台导出规格预览</div>
+      <div class="summary-list">
+        <div><strong>Google Ads:</strong> 主版式 16:9，补充导出 1:1 / 9:16，时长读取当前视频参数。</div>
+        <div><strong>Facebook / Instagram:</strong> 主版式 1:1，补充导出 4:5 / 9:16，默认保留字幕安全边距。</div>
+        <div><strong>Pinterest / 其它平台:</strong> 输出 2:3 和 9:16 长图视频版，统一走当前清晰度与文本模型。</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-04" class="screen">
+    <div class="screen-title">视频结果</div>
+    <div class="screen-lead">保留生成状态、候选详情、平台导出版本和 Drive 文件状态。</div>
+    <div id="generation-banner"></div>
+    <div class="video-result-grid" id="video-result-grid"></div>
+  </section>
+
+  <section id="screen-05" class="screen">
+    <div class="screen-title">投放建议</div>
+    <div class="screen-lead">当前建议仅供人工参考，不自动创建、修改或暂停广告。</div>
+    <div class="banner info">
+      <div>
+        <div class="banner-title">人工决策提示</div>
+        <div class="banner-body">广告平台 V1 只读，只同步数据回传和素材表现，不触发自动投放动作。</div>
+      </div>
+      <span class="tag tag-info">只读模式</span>
+    </div>
+    <div class="rec-grid">
+      <div class="rec-card">
+        <div class="rec-header"><span class="rec-title">推荐平台组合</span><span class="tag tag-success">优先测试</span></div>
+        <div class="rec-body">Facebook + Instagram 作为主投放，Google Ads 做再营销补充，Pinterest 保留低预算探索。</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-header"><span class="rec-title">推荐候选版本</span><span class="tag tag-success">已确认</span></div>
+        <div class="rec-body">候选 A 突出人物与空间关系，适合作为第一轮主推；候选 B 保留做冷启动素材对照。</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-header"><span class="rec-title">预算测试方式</span><span class="tag tag-warning">继续观察</span></div>
+        <div class="rec-body">建议以 $50/天启动，先跑 3 天积累 CTR 和 CPA，再决定是否复制到更多版位。</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-header"><span class="rec-title">推荐受众方向</span><span class="tag tag-info">建议使用</span></div>
+        <div class="rec-body">25-45 岁家居兴趣女性，近 90 天内浏览家具类商品人群，优先测试 1% 类似受众。</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-header"><span class="rec-title">文案 Hook</span><span class="tag tag-info">建议使用</span></div>
+        <div class="rec-body">“让客厅有了更柔和的停留方式”与“不是一把椅子，是一段安静的生活感”两条方向适合并行测试。</div>
+      </div>
+      <div class="rec-card">
+        <div class="rec-header"><span class="rec-title">风险提示</span><span class="tag tag-warning">人工关注</span></div>
+        <div class="rec-body">羊毛面料客单价较高，素材需避免过度抽象。若 CTR 连续低于 1.5%，建议优先重剪开场镜头。</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-06" class="screen">
+    <div class="screen-title">数据记录</div>
+    <div class="screen-lead">独立数据面板用于查看所有素材包的平台状态、Token 消耗、数据看板和历史回传记录。</div>
+
+    <div class="summary-grid" id="platform-status-grid"></div>
+    <div class="token-grid" id="token-grid"></div>
+
+    <div class="data-panel-gap">
+      <div class="card">
+        <div class="card-header"><i data-lucide="plus-circle"></i> 录入与同步</div>
+        <div class="form-row four">
+          <div>
+            <label for="data-asset-code">素材编码</label>
+            <select id="data-asset-code">
+              <option selected>VP-2026-0519-A3F</option>
+              <option>VP-2026-0427-B7D</option>
+              <option>VP-2026-0409-C2E</option>
+            </select>
+          </div>
+          <div>
+            <label for="data-platform-select">投放平台</label>
+            <select id="data-platform-select">
+              <option selected value="google">Google Ads</option>
+              <option value="facebook">Facebook</option>
+              <option value="instagram">Instagram</option>
+              <option value="meta">Meta</option>
+              <option value="x">X / Twitter</option>
+              <option value="reddit">Reddit</option>
+              <option value="pinterest">Pinterest</option>
+              <option value="other">其它平台</option>
+            </select>
+          </div>
+          <div>
+            <label for="data-utm">追踪代码 / UTM</label>
+            <input id="data-utm" type="text" value="utm_source=google&utm_medium=cpc&utm_campaign=armchair_launch">
+          </div>
+          <div>
+            <label>Drive 目录</label>
+            <input type="text" value="团队内部可访问 /drive/VP-2026-0519-A3F" readonly>
+          </div>
+        </div>
+        <div id="platform-recording-panel" style="margin-top:12px;"></div>
+        <div class="sync-actions" style="margin-top:14px;">
+          <button class="btn btn-outline" type="button">同步数据</button>
+          <button class="btn btn-outline" type="button">查看字段映射</button>
+          <button class="btn btn-primary" id="btn-track" type="button">开始追踪</button>
+          <button class="btn btn-outline" type="button"><i data-lucide="upload"></i> CSV 导入</button>
+          <button class="btn btn-outline" type="button"><i data-lucide="edit-3"></i> 手动录入</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="metric-grid" id="metric-grid"></div>
+
+    <div class="form-row four" style="margin-bottom:10px;">
+      <select><option>全部 SKU</option><option>FL-3012-A</option><option>FL-3012-B</option></select>
+      <select><option>全部平台</option><option>Google Ads</option><option>Meta</option><option>Pinterest</option></select>
+      <select><option>全部素材编码</option><option>VP-2026-0519-A3F</option></select>
+      <select><option>全部风格</option><option>Arhaus</option><option>Povison</option></select>
+    </div>
+
+    <div class="data-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th>平台</th>
+            <th>素材编码</th>
+            <th>数据来源</th>
+            <th>同步状态</th>
+            <th>投放状态</th>
+            <th>花费</th>
+            <th>曝光</th>
+            <th>点击</th>
+            <th>CTR</th>
+            <th>CPA</th>
+            <th>ROAS</th>
+          </tr>
+        </thead>
+        <tbody id="data-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="table-toolbar">
+      <div class="table-toolbar-left">
+        <div class="form-hint" id="page-range">显示 1 - 10 条</div>
+        <div class="form-hint" id="table-summary">共 128 条数据</div>
+        <label for="page-size-select" style="margin-bottom:0;">每页条数</label>
+        <select id="page-size-select" style="width:auto;">
+          <option selected value="10">10 条 / 页</option>
+          <option value="20">20 条 / 页</option>
+          <option value="50">50 条 / 页</option>
+        </select>
+      </div>
+      <div class="table-pager">
+        <button class="btn btn-outline btn-sm" id="page-prev" type="button">上一步</button>
+        <span class="form-hint" id="page-info">第 1 页 / 共 13 页</span>
+        <button class="btn btn-outline btn-sm" id="page-next" type="button">下一步</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-07" class="screen">
+    <div class="screen-title">系统配置</div>
+    <div class="screen-lead">详情按钮会打开可编辑模态框；测试连接、保存配置、取消关闭都提供明确状态反馈，敏感字段默认掩码展示。</div>
+
+    <div class="banner info">
+      <div>
+        <div class="banner-title">安全与权限基础</div>
+        <div class="banner-body">Token 不进入日志，API Key 不明文展示，Drive 默认团队内部可访问，Google Ads / Meta V1 只读。</div>
+      </div>
+      <button class="btn btn-outline btn-sm" id="btn-save-config" type="button">保存配置</button>
+    </div>
+
+    <div class="config-grid" id="config-grid"></div>
+  </section>
+</main>
+
+<aside id="right-panel" aria-label="任务摘要">
+  <div class="summary-rail">
+    <button class="summary-toggle" id="summary-toggle" type="button" aria-expanded="false" aria-controls="summary-content">
+      <i data-lucide="panel-right-open" aria-hidden="true"></i>
+    </button>
+    <div class="summary-mini">
+      <div>当前： <strong id="summary-mini-screen">需求设定</strong></div>
+      <div>状态： <strong id="summary-mini-status">草稿已保存</strong></div>
+    </div>
+    <div class="summary-content" id="summary-content">
+      <div id="right-panel-content"></div>
+    </div>
+  </div>
+</aside>
+
+<footer id="bottom-bar">
+  <div class="bb-left">
+    <button class="btn btn-ghost" id="btn-save-draft" type="button"><i data-lucide="save"></i> 保存草稿</button>
+    <span class="step-hint" id="step-hint">步骤 1 / 5</span>
+  </div>
+  <div class="bb-spacer"></div>
+  <div class="bb-right">
+    <button class="btn btn-outline" id="btn-prev" type="button"><i data-lucide="chevron-left"></i> 上一步</button>
+    <button class="btn btn-outline" id="btn-next" type="button">下一步?<i data-lucide="chevron-right"></i></button>
+    <button class="btn btn-primary btn-lg" id="btn-generate" type="button"><i data-lucide="sparkles"></i> 生成视频</button>
+  </div>
+</footer>
+
+<div class="modal-backdrop" id="config-modal-backdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="config-modal-title">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="config-modal-title">配置详情</div>
+        <div class="modal-subtitle" id="config-modal-subtitle">可编辑连接配置</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="config-modal-close" type="button"><i data-lucide="x"></i> 关闭</button>
+    </div>
+    <div class="modal-grid" id="config-modal-fields"></div>
+    <div class="modal-footer">
+      <div class="modal-status" id="config-modal-status"></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-outline" id="config-modal-test" type="button">测试连接</button>
+        <button class="btn btn-primary" id="config-modal-save" type="button">保存配置</button>
+        <button class="btn btn-ghost" id="config-modal-cancel" type="button">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const flowScreens = ["01", "02", "03", "04", "05"];
+const screenLabels = {
+  "01": "需求设定?",
+  "02": "选择素材",
+  "03": "平台适配",
+  "04": "视频结果",
+  "05": "投放建议",
+  "06": "数据记录",
+  "07": "系统配置"
+};
+
+const state = {
+  currentScreen: "01",
+  materialTab: "shopify",
+  draftSavedAt: "刚刚",
+  summaryExpanded: false,
+  mdUploaded: true,
+  mdInlineText: "品牌视觉要温暖克制，突出羊毛面料纹理；禁用夸大承诺和过度奢华措辞；CTA 聚焦预约咨询与加入购物车。",
+  selectedMdHistoryId: "md-001",
+  trackingStarted: false,
+  styleLibrary: "Arhaus 风格",
+  presetStyle: "带人物互动场景?",
+  durationValue: "30 秒",
+  customDuration: 75,
+  ratioValue: "1:1",
+  resolutionValue: "2K",
+  textModelValue: "OpenRouter · Claude 3.7 Sonnet",
+  mp4Upload: null,
+  pageSize: 10,
+  currentPage: 1,
+  activeConfigKey: null,
+  generation: {
+    status: "completed",
+    progress: 100,
+    lastRun: "12 分钟前"
+  },
+  mdHistory: [
+    { id: "md-001", name: "Arhaus_品牌规范_v4.md", lastUsed: "2 天前", fit: "Arhaus 风格", size: "12 KB", content: "品牌规则：温暖自然、木色与羊毛材质优先；卖点：舒适坐感、柔和空间氛围；禁用词：最顶级、永不变形。" },
+    { id: "md-002", name: "MOD_Lighting_禁用词_v2.md", lastUsed: "上周", fit: "灯具广告", size: "8 KB", content: "禁用词：零眩光、绝对护眼；脚本方向：强调氛围光层次和空间质感。" }
+  ],
+  selectedAssets: new Set(["AST-001", "AST-002", "AST-004"]),
+  uploadedAssets: [
+    { code: "UPL-201", type: "图片", note: "客厅实拍，全景，已加入候选池" },
+    { code: "UPL-202", type: "视频", note: "镜头时长 6 秒，待人工标注?" }
+  ],
+  platforms: {
+    google: true,
+    facebook: true,
+    instagram: true,
+    x: true,
+    reddit: false,
+    pinterest: true,
+    other: true
+  },
+  candidates: [
+    {
+      id: "A",
+      title: "候选 A",
+      version: "v1.4",
+      code: "VP-2026-0519-A3F",
+      duration: "30 秒",
+      ratio: "1:1",
+      status: "confirmed",
+      driveStatus: "saved",
+      style: "Arhaus · 带人物互动场景?",
+      materialCount: 6,
+      cover: "人物 + 客厅构图",
+      notes: "适合 Facebook / Instagram 首轮主投，强调人物入座动作和面料质感。",
+      assets: [
+        "AST-001 · Shopify · 图片",
+        "AST-002 · Shopify · 图片",
+        "AST-004 · Shopify · 视频片段",
+        "UPL-201 · 上传素材 · 图片"
+      ],
+      platforms: [
+        "Google Ads: 16:9 / 1:1 / 9:16",
+        "Facebook: 1:1 / 4:5 / 9:16",
+        "Instagram: 1:1 / 4:5 / 9:16",
+        "X / Twitter: 16:9 / 1:1",
+        "Pinterest: 2:3 / 9:16"
+      ],
+      driveFiles: [
+        "文件夹 /drive/VP-2026-0519-A3F/candidate-a",
+        "主视频 team://drive/candidate-a/master.mp4",
+        "封面图 team://drive/candidate-a/cover.jpg",
+        "导出目录 team://drive/candidate-a/exports/"
+      ]
+    },
+    {
+      id: "B",
+      title: "候选 B",
+      version: "v1.2",
+      code: "VP-2026-0519-A3F",
+      duration: "30 秒",
+      ratio: "1:1",
+      status: "kept",
+      driveStatus: "uploading",
+      style: "Arhaus · 空镜展示",
+      materialCount: 4,
+      cover: "产品空镜 + 轮廓灯光",
+      notes: "适合做冷启动对照，镜头更干净，人物露出较少。",
+      assets: [
+        "AST-003 · Shopify · 图片",
+        "AST-005 · Shopify · 图片",
+        "AST-006 · Shopify · 视频片段"
+      ],
+      platforms: [
+        "Google Ads: 16:9 / 1:1 / 9:16",
+        "Facebook: 1:1 / 4:5 / 9:16",
+        "Instagram: 1:1 / 4:5 / 9:16",
+        "Pinterest: 2:3 / 9:16"
+      ],
+      driveFiles: [
+        "文件夹 /drive/VP-2026-0519-A3F/candidate-b",
+        "主视频: 上传中",
+        "封面图: 已排队",
+        "导出目录 尚未完成"
+      ]
+    },
+    {
+      id: "C",
+      title: "候选 C",
+      version: "v0.9",
+      code: "VP-2026-0519-A3F",
+      duration: "30 秒",
+      ratio: "9:16",
+      status: "failed",
+      driveStatus: "failed",
+      style: "Povison · 带人物互动场景?",
+      materialCount: 5,
+      cover: "竖版快切 + 近景",
+      notes: "第三段转场失败，已保留失败示例，支持单候选重新生成，不影响其它候选。",
+      assets: [
+        "AST-001 · Shopify · 图片",
+        "AST-007 · Shopify · 图片",
+        "VID-SEG-03 · AI 生成 · 视频片段"
+      ],
+      platforms: [
+        "Instagram Reels: 9:16",
+        "Pinterest Idea: 9:16",
+        "其它平台: 1080x1920"
+      ],
+      driveFiles: [
+        "文件夹 /drive/VP-2026-0519-A3F/candidate-c",
+        "主视频 上传失败",
+        "错误日志: frame_transition_timeout",
+        "封面图 未生成"
+      ]
+    }
+  ],
+  generatedImageResults: [
+    { id: "img-001", code: "GEN-IMG-201", title: "窗边暖调客厅", type: "图片", model: "Ideogram 2.0", ratio: "1:1", createdAt: "刚刚", status: "已生成", savedToHistory: true },
+    { id: "img-002", code: "GEN-IMG-202", title: "面料纹理近景", type: "图片", model: "Flux 1.1 Pro", ratio: "4:5", createdAt: "1 分钟前", status: "已生成", savedToHistory: false }
+  ],
+  generatedVideoResults: [
+    { id: "vid-001", code: "GEN-VID-031", title: "45 度旋转开场", type: "视频片段", model: "Runway Gen-4", ratio: "1:1", createdAt: "刚刚", status: "已生成", savedToHistory: true },
+    { id: "vid-002", code: "GEN-VID-032", title: "面料推近镜头", type: "视频片段", model: "Pika 2.2", ratio: "9:16", createdAt: "2 分钟前", status: "处理中", savedToHistory: false }
+  ]
+};
+
+const assetData = {
+  shopify: [
+    { code: "AST-001", title: "正面主图", type: "图片", source: "Shopify", usage: "历史使用 12 次", tag: "高 CTR" },
+    { code: "AST-002", title: "侧面角度", type: "图片", source: "Shopify", usage: "历史使用 8 次", tag: "高 ROAS" },
+    { code: "AST-003", title: "面料细节", type: "图片", source: "Shopify", usage: "历史使用 3 次", tag: "细节强化" },
+    { code: "AST-004", title: "360 旋转镜头", type: "视频", source: "Shopify", usage: "历史使用 6 次", tag: "高完播" },
+    { code: "AST-005", title: "客厅场景图", type: "图片", source: "Shopify", usage: "新品素材", tag: "冷启动" },
+    { code: "AST-006", title: "扶手展示片段", type: "视频", source: "Shopify", usage: "历史使用 4 次", tag: "建议保留" },
+    { code: "AST-007", title: "羊毛纹理特写", type: "图片", source: "Shopify", usage: "新品素材", tag: "高停留" },
+    { code: "AST-008", title: "尺寸说明图", type: "图片", source: "Shopify", usage: "历史使用 2 次", tag: "补充说明" }
+  ],
+  history: [
+    { code: "HIS-045", title: "春季沙发系列 UGC", type: "视频", source: "历史投放", usage: "高 ROAS", tag: "建议重剪" },
+    { code: "HIS-082", title: "木色客厅静帧", type: "图片", source: "历史生成", usage: "高 CTR", tag: "Google Ads 高 CTR" },
+    { code: "HIS-091", title: "用户入座特写", type: "视频", source: "历史投放", usage: "低转化", tag: "仅做参考" },
+    { code: "HIS-118", title: "模特翻页杂志镜头", type: "视频", source: "历史生成", usage: "高停留", tag: "Meta 高停留" }
+  ]
+};
+
+const platformMeta = [
+  { key: "google", name: "Google Ads", specs: "比例：16:9 / 1:1 / 9:16\n尺寸：<= 2 GB\n时长：<= 30 秒" },
+  { key: "facebook", name: "Facebook", specs: "比例：1:1 / 4:5 / 9:16\n尺寸：<= 4 GB\n时长：<= 240 分钟" },
+  { key: "instagram", name: "Instagram", specs: "比例：1:1 / 4:5 / 9:16\n尺寸：<= 100 MB\n时长：<= 60 秒" },
+  { key: "x", name: "X / Twitter", specs: "比例：16:9 / 1:1\n尺寸：<= 1 GB\n时长：<= 140 秒" },
+  { key: "reddit", name: "Reddit", specs: "比例：16:9 / 1:1\n尺寸：<= 1 GB\n时长：<= 15 分钟" },
+  { key: "pinterest", name: "Pinterest", specs: "比例：2:3 / 9:16\n尺寸：<= 2 GB\n时长：<= 15 分钟" },
+  { key: "other", name: "其它平台", specs: "自定义比例：16:9\n自定义尺寸：500 MB\n说明：支持补充特殊广告位要求" }
+];
+
+const platformStatusCards = [
+  { title: "Google Ads", status: "已授权", detail: "API 同步，最近同步 8 分钟前", mode: "API / 只读回传" },
+  { title: "Meta", status: "已授权", detail: "API 同步，最近同步 12 分钟前", mode: "API / 只读回传" },
+  { title: "X / Twitter", status: "待导入", detail: "V1 暂不支持自动 API 回传", mode: "CSV / 手动记录" },
+  { title: "Reddit", status: "待导入", detail: "V1 暂不支持自动 API 回传", mode: "CSV / 手动记录" },
+  { title: "Pinterest", status: "手动维护", detail: "最近手动更新：昨天 18:20", mode: "CSV / 手动记录" }
+];
+
+const metrics = [
+  { label: "花费", value: "$1,284.50", change: "+12.3%", cls: "up" },
+  { label: "曝光", value: "42,891", change: "+8.7%", cls: "up" },
+  { label: "点击", value: "1,203", change: "-2.1%", cls: "down" },
+  { label: "CTR", value: "2.81%", change: "+0.3pp", cls: "up" },
+  { label: "CPA", value: "$33.80", change: "-$4.20", cls: "down" },
+  { label: "ROAS", value: "3.42x", change: "+0.28x", cls: "up" },
+  { label: "同步状态?", value: "待启动", change: "尚未开启", cls: "neutral" },
+  { label: "展示量", value: "42,891", change: "广告数据", cls: "neutral" },
+  { label: "转化次数", value: "38", change: "+7 次", cls: "up" },
+  { label: "转化金额", value: "$4,392.00", change: "累计回传", cls: "up" },
+  { label: "投放消耗金额", value: "$1,284.50", change: "广告平台", cls: "neutral" },
+  { label: "事件素材总消耗", value: "$186.20", change: "图片 / 视频生成", cls: "neutral" },
+  { label: "广告投入总消耗", value: "$1,284.50", change: "媒体采买", cls: "neutral" },
+  { label: "7 天效果衡量", value: "ROI 3.42 · 中", change: "2 < ROI < 4：中", cls: "up" }
+];
+
+const tokenUsage = [
+  { label: "模型计数", value: "37.3k", note: "文本分析 + 脚本 + 建议" },
+  { label: "图片模型使用计数", value: "7 次", note: "图片素材生成调用" },
+  { label: "视频模型使用计数", value: "4 次", note: "视频片段生成调用" },
+  { label: "总计 / 费用估计", value: "$186.20", note: "事件素材消耗估算" }
+];
+
+const baseRows = [
+  { platform: "Google Ads", source: "API", sync: "已同步", status: "测试中", spend: 286, imp: 9542, click: 248, ctr: "2.60%", cpa: 31.78, roas: "3.8x" },
+  { platform: "Meta", source: "API", sync: "已同步", status: "观察中", spend: 362, imp: 11830, click: 355, ctr: "3.00%", cpa: 36.2, roas: "2.9x" },
+  { platform: "Pinterest", source: "CSV", sync: "待导入", status: "测试中", spend: 208, imp: 7222, click: 199, ctr: "2.76%", cpa: 29.71, roas: "4.1x" },
+  { platform: "X / Twitter", source: "手动", sync: "手动更新", status: "建议重剪", spend: 96.4, imp: 4108, click: 59, ctr: "1.43%", cpa: 48.2, roas: "1.8x" }
+];
+
+const dataRows = Array.from({ length: 128 }, (_, index) => {
+  const base = baseRows[index % baseRows.length];
+  const offset = Math.floor(index / baseRows.length);
+  const month = 5;
+  const day = 19 - (index % 12);
+  return {
+    date: `${String(month).padStart(2, "0")}/${String(day > 0 ? day : 1).padStart(2, "0")}`,
+    platform: base.platform,
+    code: `VP-2026-0519-A${String((index % 7) + 1).padStart(2, "0")}`,
+    source: base.source,
+    sync: base.sync,
+    status: base.status,
+    spend: `$${(base.spend + offset * 3.25).toFixed(2)}`,
+    imp: (base.imp + offset * 117).toLocaleString("en-US"),
+    click: (base.click + offset * 5).toLocaleString("en-US"),
+    ctr: base.ctr,
+    cpa: `$${(base.cpa + offset * 0.45).toFixed(2)}`,
+    roas: base.roas
+  };
+});
+
+const configCards = [
+  {
+    key: "shopify",
+    title: "Shopify 配置",
+    status: "已连接",
+    body: [
+      "店铺域名: arhaus-home.myshopify.com",
+      "Token 状态： 已配置，掩码显示",
+      "权限范围: products, media, inventory",
+      "最近同步 2026-05-19 10:12"
+    ]
+  },
+  {
+    key: "drive",
+    title: "Google Drive 配置",
+    status: "已连接",
+    body: [
+      "授权账号: media-ops@team.internal",
+      "根目录 视频投放智能体素材库",
+      "根目录 ID: drive-root-01",
+      "默认权限: 团队内部可访问，不公开分享"
+    ]
+  },
+  {
+    key: "googleAds",
+    title: "Google Ads 配置",
+    status: "只读已授权",
+    body: [
+      "Customer ID: 483-220-1189",
+      "数据回传字段: impressions / clicks / conversions",
+      "最近同步 2026-05-19 10:18",
+      "说明: V1 仅读取投放数据，不自动创建或修改广告"
+    ]
+  },
+  {
+    key: "meta",
+    title: "Meta 配置",
+    status: "只读已授权",
+    body: [
+      "Ad Account ID: act_2981130021",
+      "数据回传字段: spend / cpc / ctr / purchase",
+      "最近同步 2026-05-19 10:06",
+      "说明: V1 仅读取投放数据，不自动创建或修改广告"
+    ]
+  },
+  {
+    key: "openRouter",
+    title: "OpenRouter 配置",
+    status: "已配置",
+    body: [
+      "API Key: 已配置，未明文展示",
+      "默认文本分析模型: Claude 3.7 Sonnet",
+      "备用模型: GPT-4.1",
+      "用途: 竞品分析、脚本、分镜、投放建议"
+    ]
+  },
+  {
+    key: "imageModel",
+    title: "图片生成模型",
+    status: "已配置",
+    body: [
+      "供应商 Ideogram",
+      "默认比例: 1:1",
+      "默认清晰度? 2K",
+      "失败重试次数: 2"
+    ]
+  },
+  {
+    key: "videoModel",
+    title: "视频生成模型",
+    status: "已配置",
+    body: [
+      "供应商 Runway",
+      "默认比例: 1:1",
+      "默认清晰度? 2K",
+      "默认时长: 30 秒"
+    ]
+  }
+];
+
+const configModalSchemas = {
+  shopify: {
+    title: "Shopify 配置",
+    subtitle: "敏感字段默认掩码显示，保存后会更新配置卡片状态。",
+    fields: [
+      { label: "店铺域名", type: "text", value: "arhaus-home.myshopify.com" },
+      { label: "API Access Token", type: "text", value: "shpat_••••••••••••••••" },
+      { label: "权限范围", type: "text", value: "products, media, inventory" },
+      { label: "最近同步时长", type: "text", value: "2026-05-19 10:12", readonly: true },
+      { label: "连接说明", type: "textarea", value: "保持 Shopify 商品、素材和库存读取权限，供视频生成任务选择商品与素材。", full: true }
+    ]
+  },
+  drive: {
+    title: "Google Drive 配置",
+    subtitle: "默认分享权限必须保持团队内部可访问，不公开分享。",
+    fields: [
+      { label: "授权账号", type: "text", value: "media-ops@team.internal" },
+      { label: "根目录名称", type: "text", value: "视频投放智能体素材库" },
+      { label: "根目录 ID", type: "text", value: "drive-root-01" },
+      { label: "默认分享权限", type: "text", value: "团队内部可访问，不公开分享" },
+      { label: "补充说明", type: "textarea", value: "测试上传通过后，主视频、平台导出版本和封面图都会写入同一个任务目录。", full: true }
+    ]
+  },
+  googleAds: {
+    title: "Google Ads 配置",
+    subtitle: "V1 只读取投放数据，不自动创建、修改或暂停广告。",
+    fields: [
+      { label: "Customer ID", type: "text", value: "483-220-1189" },
+      { label: "授权状态：", type: "text", value: "已授权", readonly: true },
+      { label: "数据回传字段", type: "text", value: "impressions, clicks, conversions" },
+      { label: "最近同步时长", type: "text", value: "2026-05-19 10:18", readonly: true },
+      { label: "只读说明", type: "textarea", value: "V1 只读取投放数据，不自动创建、修改或暂停广告。", full: true }
+    ]
+  },
+  meta: {
+    title: "Meta 配置",
+    subtitle: "V1 只读取投放数据，不自动创建、修改或暂停广告。",
+    fields: [
+      { label: "Ad Account ID", type: "text", value: "act_2981130021" },
+      { label: "授权状态：", type: "text", value: "已授权", readonly: true },
+      { label: "数据回传字段", type: "text", value: "spend, cpc, ctr, purchase" },
+      { label: "最近同步时长", type: "text", value: "2026-05-19 10:06", readonly: true },
+      { label: "只读说明", type: "textarea", value: "V1 只读取投放数据，不自动创建、修改或暂停广告。", full: true }
+    ]
+  },
+  openRouter: {
+    title: "OpenRouter 配置",
+    subtitle: "文本分析模型用于竞品分析、脚本、分镜和投放建议。",
+    fields: [
+      { label: "API Key", type: "text", value: "sk-or-••••••••••••" },
+      { label: "默认文本分析模型", type: "text", value: "Claude 3.7 Sonnet" },
+      { label: "备用模型", type: "text", value: "GPT-4.1" },
+      { label: "超时设置", type: "text", value: "45 秒" },
+      { label: "用途说明", type: "textarea", value: "用于竞品分析、脚本草拟、分镜摘要和投放建议生成。", full: true }
+    ]
+  },
+  imageModel: {
+    title: "图片生成模型配置",
+    subtitle: "支持设置供应商、比例、清晰度和失败重试次数。",
+    fields: [
+      { label: "供应商", type: "text", value: "Ideogram" },
+      { label: "授权状态：", type: "text", value: "已连接", readonly: true },
+      { label: "默认比例", type: "text", value: "1:1" },
+      { label: "默认清晰度?", type: "text", value: "2K" },
+      { label: "失败重试次数", type: "number", value: "2" },
+      { label: "补充说明", type: "textarea", value: "图片素材生成完成后默认进入“生成图片素材”素材 Tab，可直接加入当前候选素材池。", full: true }
+    ]
+  },
+  videoModel: {
+    title: "视频生成模型配置",
+    subtitle: "支持设置供应商、比例、清晰度、默认时长和失败重试次数。",
+    fields: [
+      { label: "供应商", type: "text", value: "Runway Gen-4" },
+      { label: "授权状态：", type: "text", value: "已连接", readonly: true },
+      { label: "默认比例", type: "text", value: "1:1" },
+      { label: "默认清晰度?", type: "text", value: "2K" },
+      { label: "默认时长", type: "text", value: "30 秒" },
+      { label: "失败重试次数", type: "number", value: "2" },
+      { label: "补充说明", type: "textarea", value: "视频候选版本生成后会自动创建候选 A / B / C，并写入对应 Drive 目录。", full: true }
+    ]
+  }
+};
+
+function formatBadge(label, type, icon) {
+  return `<span class="status-badge ${type}">${icon ? `<i data-lucide="${icon}" style="width:14px;height:14px;"></i>` : ""}${label}</span>`;
+}
+
+function driveLabel(status) {
+  switch (status) {
+    case "saved": return "已保存";
+    case "uploading": return "上传中";
+    case "failed": return "上传失败";
+    default: return "未上传";
+  }
+}
+
+function currentDurationLabel() {
+  return state.durationValue === "自定义" ? `${state.customDuration} 秒` : state.durationValue;
+}
+
+function currentStyleLabel() {
+  return `${state.styleLibrary} · ${state.presetStyle}`;
+}
+
+function currentVideoParamsLabel() {
+  return `${currentDurationLabel()} · ${state.ratioValue} · ${state.resolutionValue}`;
+}
+
+function completedFlowScreens() {
+  const completed = new Set();
+  if (state.draftSavedAt) completed.add("01");
+  if (state.selectedAssets.size >= 3) completed.add("02");
+  if (platformMeta.filter(item => state.platforms[item.key]).length >= 3) completed.add("03");
+  if (state.candidates.length > 0) completed.add("04");
+  if (state.candidates.some(item => item.status === "confirmed")) completed.add("05");
+  return completed;
+}
+
+function renderFlowNavStatus() {
+  const completed = completedFlowScreens();
+  const saveStatus = state.draftSavedAt ? "自动保存 · 已保存" : "自动保存 · 未保存";
+  const saveStatusNode = document.getElementById("nav-save-status");
+  if (saveStatusNode) saveStatusNode.textContent = saveStatus;
+  document.querySelectorAll('.nav-item[data-screen]').forEach(button => {
+    const screenId = button.dataset.screen;
+    button.classList.toggle("completed", completed.has(screenId));
+  });
+}
+
+function updateTopbar() {
+  const badges = [];
+  badges.push(formatBadge(`草稿已保存· ${state.draftSavedAt}`, "saved", "save-all"));
+
+  if (state.generation.status === "processing") {
+    badges.push(formatBadge(`生成中 · ${state.generation.progress}%`, "processing", "loader-2"));
+  } else {
+    badges.push(formatBadge(`候选已生成 · ${state.generation.lastRun}`, "info", "sparkles"));
+  }
+  document.getElementById("topbar-badges").innerHTML = badges.join("");
+}
+
+function renderRightPanel() {
+  const enabledPlatforms = platformMeta.filter(item => state.platforms[item.key]).length;
+  const confirmedCandidate = state.candidates.find(item => item.status === "confirmed");
+  const driveSummary = state.candidates.map(item => `${item.title}: ${driveLabel(item.driveStatus)}`).join(" / ");
+  document.getElementById("summary-mini-screen").textContent = screenLabels[state.currentScreen];
+  document.getElementById("right-panel-content").innerHTML = `
+    <div class="rp-section">
+      <div class="rp-row"><span class="rp-label">任务名称</span><span class="rp-value">2026 春季客厅单品视频投放</span></div>
+      <div class="rp-row"><span class="rp-label">素材包编码</span><span class="rp-value mono">VP-2026-0519-A3F</span></div>
+      <div class="rp-row"><span class="rp-label">Shopify 商品</span><span class="rp-value mono">FL-3012-A</span></div>
+      <div class="rp-row"><span class="rp-label">已选风格</span><span class="rp-value">${currentStyleLabel()}</span></div>
+      <div class="rp-row"><span class="rp-label">草稿状态</span><span class="rp-value">已保存（${state.draftSavedAt}）</span></div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-row"><span class="rp-label">启用平台</span><span class="rp-value">${enabledPlatforms} 个</span></div>
+      <div class="rp-row"><span class="rp-label">视频参数</span><span class="rp-value">${currentVideoParamsLabel()}</span></div>
+      <div class="rp-row"><span class="rp-label">文本模型</span><span class="rp-value">${state.textModelValue}</span></div>
+      <div class="rp-row"><span class="rp-label">视频模型</span><span class="rp-value">Runway Gen-4</span></div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-row"><span class="rp-label">已选素材</span><span class="rp-value">${state.selectedAssets.size} / 8 件</span></div>
+      <div class="rp-note mono">${Array.from(state.selectedAssets).join(" · ")}</div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-row"><span class="rp-label">生成候选</span><span class="rp-value">${state.candidates.length} 个</span></div>
+      <div class="rp-row"><span class="rp-label">已确认版本</span><span class="rp-value">${confirmedCandidate ? confirmedCandidate.title : "未确认"}</span></div>
+      <div class="rp-row"><span class="rp-label">Drive 状态</span><span class="rp-value">${driveSummary}</span></div>
+      <a class="rp-link" href="#"><i data-lucide="external-link"></i> 打开 Google Drive 目录</a>
+      <div class="rp-note">团队内部可访问，不公开分享。</div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-row"><span class="rp-label">追踪状态</span><span class="rp-value">${state.trackingStarted ? "已开启" : "未开启"}</span></div>
+      <div class="rp-row"><span class="rp-label">Google / Meta</span><span class="rp-value">API 授权正常</span></div>
+      <div class="rp-row"><span class="rp-label">其它平台</span><span class="rp-value">CSV / 手动录入</span></div>
+    </div>
+  `;
+}
+
+function renderMdUploadList() {
+  const list = document.getElementById("md-upload-list");
+  list.innerHTML = state.mdUploaded ? `
+    <div class="upload-item">
+      <i data-lucide="file-text" style="width:16px;height:16px;color:var(--muted);"></i>
+      <div>
+        <strong>Arhaus_品牌规范_v4.md</strong>
+        <span>已上传，12 KB，已通过生成前置校验</span>
+      </div>
+      <div class="actions">
+        <span class="tag tag-success">已就绪</span>
+      </div>
+    </div>
+  ` : `
+    <div class="upload-item">
+      <i data-lucide="alert-circle" style="width:16px;height:16px;color:var(--warning);"></i>
+      <div>
+        <strong>尚未上传 MD 需求文档</strong>
+        <span>上传后“生成视频”按钮才会进入可用状态。</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderMdHistoryList() {
+  const list = document.getElementById("md-history-list");
+  if (!list) return;
+  list.innerHTML = state.mdHistory.map(item => `
+    <div class="md-history-item">
+      <strong>${item.name}</strong>
+      <div class="md-history-meta">
+        <span>最近使用：${item.lastUsed}</span>
+        <span>适用：${item.fit}</span>
+        <span>${item.size}</span>
+      </div>
+      <div class="generated-result-actions">
+        <button class="btn ${state.selectedMdHistoryId === item.id ? "btn-primary" : "btn-outline"} btn-sm" type="button" data-md-history-id="${item.id}">${state.selectedMdHistoryId === item.id ? "已选择" : "选择使用"}</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderMp4UploadList() {
+  const list = document.getElementById("mp4-upload-list");
+  if (!state.mp4Upload) {
+    list.innerHTML = "";
+    return;
+  }
+  list.innerHTML = `
+    <div class="upload-item">
+      <i data-lucide="file-video" style="width:16px;height:16px;color:var(--muted);"></i>
+      <div>
+        <strong>${state.mp4Upload.name}</strong>
+        <span>${state.mp4Upload.size} · ${state.mp4Upload.status}</span>
+      </div>
+      <div class="actions">
+        <span class="tag tag-info">${state.mp4Upload.status}</span>
+        <button class="btn btn-ghost btn-sm" type="button" id="remove-mp4-upload">移除</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderMdMergeBanner() {
+  const hasInlineText = state.mdInlineText.trim().length > 0;
+  document.getElementById("md-merge-banner").style.display = state.mdUploaded && hasInlineText ? "flex" : "none";
+}
+
+function renderUploadedAssets() {
+  document.getElementById("asset-upload-list").innerHTML = state.uploadedAssets.map(item => `
+    <div class="upload-item">
+      <i data-lucide="${item.type === "图片" ? "image" : "video"}" style="width:16px;height:16px;color:var(--muted);"></i>
+      <div>
+        <strong>${item.code} · ${item.type}</strong>
+        <span>${item.note}</span>
+      </div>
+      <div class="actions">
+        <span class="tag tag-success">已加入</span>
+      </div>
+    </div>
+  `).join("");
+}
+
+function assetCardTemplate(asset) {
+  const checked = state.selectedAssets.has(asset.code);
+  return `
+    <label class="asset-option">
+      <input class="asset-checkbox" type="checkbox" data-asset-code="${asset.code}" ${checked ? "checked" : ""} aria-checked="${checked ? "true" : "false"}">
+      <span class="asset-card">
+        <span class="asset-thumb">
+          <span>${asset.title}</span>
+          <span class="asset-type-badge">${asset.type}</span>
+        </span>
+        <span class="asset-info">
+          <span class="asset-title">${asset.title}</span>
+          <span class="asset-code">${asset.code}</span>
+          <span class="asset-meta">
+            <span class="tag tag-neutral">${asset.source}</span>
+            <span class="tag tag-info">${asset.tag}</span>
+            <span class="tag tag-neutral">${asset.usage}</span>
+          </span>
+        </span>
+      </span>
+    </label>
+  `;
+}
+
+function historyAssets() {
+  const generated = [...state.generatedImageResults, ...state.generatedVideoResults]
+    .filter(item => item.savedToHistory)
+    .map(item => ({
+      code: item.code,
+      title: item.title,
+      type: item.type,
+      source: "历史素材",
+      usage: `生成模型 ${item.model}`,
+      tag: "已保存到历史素材"
+    }));
+  return [...assetData.history, ...generated];
+}
+
+function renderAssetGrids() {
+  document.getElementById("asset-grid-shopify").innerHTML = assetData.shopify.map(assetCardTemplate).join("");
+  document.getElementById("asset-grid-history").innerHTML = historyAssets().map(assetCardTemplate).join("");
+}
+
+function generatedResultTemplate(item, kind) {
+  return `
+    <div class="generated-result-item">
+      <div class="generated-result-thumb">
+        <span>${item.title}</span>
+        <span class="tag ${item.type === "图片" ? "tag-info" : "tag-warning"}">${item.type}</span>
+      </div>
+      <div style="margin-top:10px;">
+        <strong>${item.code}</strong>
+        <div class="generated-result-meta">
+          <span>${item.model}</span>
+          <span>${item.ratio}</span>
+          <span>${item.createdAt}</span>
+          <span>${item.savedToHistory ? "已保存到历史素材" : item.status}</span>
+        </div>
+      </div>
+      <div class="generated-result-actions">
+        <button class="btn btn-outline btn-sm" type="button" data-generated-action="select" data-generated-kind="${kind}" data-generated-id="${item.id}">下载到本地</button>
+        <button class="btn btn-outline btn-sm" type="button" data-generated-action="save-history" data-generated-kind="${kind}" data-generated-id="${item.id}">保存到历史素材</button>
+        <button class="btn btn-outline btn-sm" type="button" data-generated-action="delete" data-generated-kind="${kind}" data-generated-id="${item.id}">删除素材</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderGeneratedResults() {
+  const imageList = document.getElementById("generated-image-results");
+  const videoList = document.getElementById("generated-video-results");
+  if (imageList) {
+    imageList.innerHTML = state.generatedImageResults.map(item => generatedResultTemplate(item, "image")).join("");
+  }
+  if (videoList) {
+    videoList.innerHTML = state.generatedVideoResults.map(item => generatedResultTemplate(item, "video")).join("");
+  }
+}
+
+function renderPlatforms() {
+  document.getElementById("platform-grid").innerHTML = platformMeta.map(item => {
+    const enabled = state.platforms[item.key];
+    return `
+      <article class="platform-card ${enabled ? "enabled" : "disabled"}" data-platform="${item.key}">
+        <div class="platform-head">
+          <div>
+            <div class="platform-name">${item.name}</div>
+            <div class="form-hint">${item.key === "google" || item.key === "facebook" || item.key === "instagram" ? "API 同步优先" : "导出 / CSV / 手动支持"}</div>
+          </div>
+          <button class="switch-btn" type="button" role="switch" aria-checked="${enabled ? "true" : "false"}" aria-label="切换 ${item.name}"></button>
+        </div>
+        <div class="platform-specs">${item.specs.replace(/\n/g, "<br>")}</div>
+      </article>
+    `;
+  }).join("");
+}
+
+function candidateStatusTag(status) {
+  switch (status) {
+    case "confirmed": return `<span class="tag tag-success">已确认</span>`;
+    case "kept": return `<span class="tag tag-info">已保留</span>`;
+    case "failed": return `<span class="tag tag-error">生成失败</span>`;
+    case "processing": return `<span class="tag tag-warning">重新生成中</span>`;
+    default: return `<span class="tag tag-neutral">候选结果</span>`;
+  }
+}
+
+function renderGenerationBanner() {
+  const banner = document.getElementById("generation-banner");
+  if (state.generation.status === "processing") {
+    banner.innerHTML = `
+      <div class="banner processing">
+        <div>
+          <div class="banner-title">视频生成中</div>
+          <div class="banner-body">正在根据已选素材、平台比例和 MD 需求文件生成 3 个候选版本；单个失败不会影响其它候选。</div>
+        </div>
+        <div class="progress-bar"><span style="width:${state.generation.progress}%;"></span></div>
+      </div>
+    `;
+  } else {
+    banner.innerHTML = `
+      <div class="banner info">
+        <div>
+          <div class="banner-title">最近一次生成完成</div>
+          <div class="banner-body">共返回 3 个候选版本，其中 1 个候选保留失败示例，方便演示重新生成流程。</div>
+        </div>
+        <span class="tag tag-info">${state.generation.lastRun}</span>
+      </div>
+    `;
+  }
+}
+
+function renderCandidates() {
+  document.getElementById("video-result-grid").innerHTML = state.candidates.map(item => `
+    <article class="video-result-card">
+      <div class="vr-preview">
+        <div class="vr-ribbon">${candidateStatusTag(item.status)}</div>
+        <div class="play-btn"><i data-lucide="play" style="fill:var(--fg);"></i></div>
+      </div>
+      <div class="vr-info">
+        <div class="vr-title">
+          <div>
+            <strong>${item.title}</strong>
+            <div class="vr-code">${item.code} · ${item.version}</div>
+          </div>
+          <span class="tag ${item.driveStatus === "saved" ? "tag-success" : item.driveStatus === "uploading" ? "tag-warning" : item.driveStatus === "failed" ? "tag-error" : "tag-neutral"}">Drive ${driveLabel(item.driveStatus)}</span>
+        </div>
+        <div class="vr-meta">
+          <span>风格</span><span>${item.style}</span>
+          <span>素材数量</span><span>${item.materialCount} 个</span>
+          <span>主比例</span><span>${item.ratio}</span>
+          <span>视频时长</span><span>${item.duration}</span>
+          <span>主封面</span><span>${item.cover}</span>
+          <span>结果状态</span><span>${item.status === "failed" ? "生成失败" : item.status === "confirmed" ? "已确认" : item.status === "kept" ? "已保留" : "待处理"}</span>
+        </div>
+        <div class="summary-list">
+          <div><strong>AI 生成说明:</strong> ${item.notes}</div>
+        </div>
+        <div class="vr-actions">
+          <button class="btn btn-primary btn-sm" type="button" data-candidate-action="confirm" data-candidate-id="${item.id}">确认结果</button>
+          <button class="btn btn-outline btn-sm" type="button" data-candidate-action="download" data-candidate-id="${item.id}">下载</button>
+          <button class="btn btn-outline btn-sm" type="button" data-candidate-action="regen" data-candidate-id="${item.id}">重新生成</button>
+          <button class="btn btn-outline btn-sm" type="button" data-candidate-action="drive" data-candidate-id="${item.id}">保存到 Drive</button>
+        </div>
+      </div>
+      <div class="detail-block">
+        <details open>
+          <summary>平台适配版本</summary>
+          <div class="detail-list">${item.platforms.map(line => `<div>${line}</div>`).join("")}</div>
+        </details>
+        <details>
+          <summary>使用素材列表</summary>
+          <div class="detail-list">${item.assets.map(line => `<div>${line}</div>`).join("")}</div>
+        </details>
+        <details>
+          <summary>Drive 文件</summary>
+          <div class="detail-list">${item.driveFiles.map(line => `<div>${line}</div>`).join("")}</div>
+        </details>
+      </div>
+    </article>
+  `).join("");
+}
+
+function renderPlatformStatusCards() {
+  document.getElementById("platform-status-grid").innerHTML = platformStatusCards.map(item => `
+    <div class="summary-card">
+      <div class="summary-title">
+        <strong>${item.title}</strong>
+        <span class="tag ${item.status.includes("授权") || item.status.includes("连接") ? "tag-success" : "tag-warning"}">${item.status}</span>
+      </div>
+      <div class="summary-list">
+        <div><strong>模式:</strong> ${item.mode}</div>
+        <div><strong>状态：</strong> ${item.detail}</div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderMetrics() {
+  metrics[6].value = state.trackingStarted ? "已启动" : "待启动";
+  metrics[6].change = state.trackingStarted ? "API / CSV 联动" : "尚未开启";
+  document.getElementById("metric-grid").innerHTML = metrics.map(item => `
+    <div class="metric-card">
+      <div class="metric-label">${item.label}</div>
+      <div class="metric-value">${item.value}</div>
+      <div class="metric-change ${item.cls}">${item.change}</div>
+    </div>
+  `).join("");
+}
+
+function renderTokenUsage() {
+  const tokenGrid = document.getElementById("token-grid");
+  if (!tokenGrid) return;
+  tokenGrid.innerHTML = tokenUsage.map(item => `
+    <div class="token-card">
+      <div class="token-label">${item.label}</div>
+      <div class="token-value">${item.value}</div>
+      <div class="token-note">${item.note}</div>
+    </div>
+  `).join("");
+}
+
+
+function renderDataAssetOptions() {
+  const select = document.getElementById("data-asset-code");
+  if (!select) return;
+  const options = state.candidates
+    .filter(item => item.status === "confirmed" || item.driveStatus === "saved")
+    .map(item => `<option value="${item.code}">${item.code} · ${item.title}</option>`);
+  select.innerHTML = options.join("") || '<option value="VP-2026-0519-A3F">VP-2026-0519-A3F</option>';
+}
+
+
+function totalPages() {
+  return Math.max(1, Math.ceil(dataRows.length / state.pageSize));
+}
+
+function pagedRows() {
+  const start = (state.currentPage - 1) * state.pageSize;
+  return dataRows.slice(start, start + state.pageSize);
+}
+
+function renderDataTable() {
+  const rows = pagedRows();
+  const startIndex = (state.currentPage - 1) * state.pageSize + 1;
+  const endIndex = Math.min(state.currentPage * state.pageSize, dataRows.length);
+  document.getElementById("data-table-body").innerHTML = rows.map(item => `
+    <tr>
+      <td>${item.date}</td>
+      <td>${item.platform}</td>
+      <td class="mono">${item.code}</td>
+      <td>${item.source}</td>
+      <td>${item.sync}</td>
+      <td>${item.status}</td>
+      <td>${item.spend}</td>
+      <td>${item.imp}</td>
+      <td>${item.click}</td>
+      <td>${item.ctr}</td>
+      <td>${item.cpa}</td>
+      <td>${item.roas}</td>
+    </tr>
+  `).join("");
+  document.getElementById("table-summary").textContent = `共 ${dataRows.length} 条数据`;
+  document.getElementById("page-info").textContent = `第 ${state.currentPage} 页 / 共 ${totalPages()} 页`;
+  document.getElementById("page-range").textContent = `显示 ${startIndex} - ${endIndex} 条`;
+  document.getElementById("page-prev").disabled = state.currentPage === 1;
+  document.getElementById("page-next").disabled = state.currentPage === totalPages();
+}
+
+function renderRecordingPanel() {
+  const value = document.getElementById("data-platform-select").value;
+  const panel = document.getElementById("platform-recording-panel");
+  if (value === "google" || value === "meta") {
+    panel.innerHTML = `
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-title"><strong>授权状态</strong><span class="tag tag-success">已授权</span></div>
+          <div class="summary-list">
+            <div><strong>最近同步:</strong> 8 分钟前</div>
+            <div><strong>模式:</strong> API 自动回传</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-title"><strong>同步动作</strong><span class="tag tag-info">只读</span></div>
+          <div class="summary-list">
+            <div>支持点击“同步数据”拉取花费、点击、转化。</div>
+            <div>不会创建、修改或暂停广告。</div>
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    panel.innerHTML = `
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-title"><strong>数据入口</strong><span class="tag tag-warning">CSV / 手动</span></div>
+          <div class="summary-list">
+            <div>V1 暂不支持自动 API 回传。</div>
+            <div>可通过 CSV 导入或手动记录补充数据。</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-title"><strong>当前同步状态</strong><span class="tag tag-neutral">待导入</span></div>
+          <div class="summary-list">
+            <div><strong>推荐方式:</strong> 先导出投放数据，再按素材编码回填。</div>
+            <div><strong>注意:</strong> 表格会标记数据来源，避免与 API 数据混淆。</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}
+
+
+function renderConfigCards() {
+  document.getElementById("config-grid").innerHTML = configCards.map(item => `
+    <section class="config-card">
+      <div class="config-top">
+        <div>
+          <strong>${item.title}</strong>
+          <div class="form-hint">${item.status}</div>
+        </div>
+        <span class="tag ${item.status.includes("只读") ? "tag-info" : "tag-success"}">${item.status}</span>
+      </div>
+      <div class="config-body">${item.body.map(line => `<div>${line}</div>`).join("")}</div>
+      <div class="config-actions">
+        <button class="btn btn-outline btn-sm" type="button">测试连接</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-config-detail="${item.key}">详情</button>
+      </div>
+    </section>
+  `).join("");
+}
+
+function updateStepControls() {
+  const currentIsFlow = flowScreens.includes(state.currentScreen);
+  const currentFlowIndex = flowScreens.indexOf(state.currentScreen);
+  const saveDraft = document.getElementById("btn-save-draft");
+  const stepHint = document.getElementById("step-hint");
+  document.getElementById("btn-prev").classList.toggle("hidden", !currentIsFlow);
+  document.getElementById("btn-next").classList.toggle("hidden", !currentIsFlow);
+  document.getElementById("btn-generate").classList.toggle("hidden", state.currentScreen !== "03");
+  saveDraft.classList.toggle("hidden", state.currentScreen === "05" || !currentIsFlow);
+  stepHint.classList.toggle("hidden", state.currentScreen === "05" || !currentIsFlow);
+  if (currentIsFlow) {
+    stepHint.textContent = `步骤 ${currentFlowIndex + 1} / ${flowScreens.length}`;
+    document.getElementById("btn-prev").disabled = currentFlowIndex === 0;
+    document.getElementById("btn-next").disabled = currentFlowIndex === flowScreens.length - 1;
+  } else {
+    stepHint.textContent = "";
+  }
+  document.getElementById("btn-generate").disabled = !canGenerate();
+  document.getElementById("btn-next").textContent = "下一步";
+}
+
+function canGenerate() {
+  const enabledPlatforms = platformMeta.filter(item => state.platforms[item.key]).length;
+  const hasMdInput = state.mdUploaded || state.mdInlineText.trim().length > 0;
+  return hasMdInput && state.selectedAssets.size >= 3 && enabledPlatforms >= 3;
+}
+
+function setSummaryExpanded(expanded) {
+  state.summaryExpanded = expanded;
+  document.body.classList.toggle("summary-expanded", expanded);
+  const toggle = document.getElementById("summary-toggle");
+  toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+  toggle.setAttribute("aria-label", expanded ? "收起任务摘要" : "展开任务摘要");
+  toggle.innerHTML = expanded
+    ? '<i data-lucide="panel-right-close" aria-hidden="true"></i>'
+    : '<i data-lucide="panel-right-open" aria-hidden="true"></i>';
+}
+
+function showScreen(screenId) {
+  state.currentScreen = screenId;
+  document.querySelectorAll(".screen").forEach(screen => {
+    screen.classList.toggle("active", screen.id === `screen-${screenId}`);
+  });
+  document.querySelectorAll(".nav-item").forEach(button => {
+    const active = button.dataset.screen === screenId;
+    button.classList.toggle("active", active);
+    if (active) {
+      button.setAttribute("aria-current", flowScreens.includes(screenId) ? "step" : "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
+  });
+  updateStepControls();
+  renderRightPanel();
+}
+
+function setMaterialTab(tabName) {
+  state.materialTab = tabName;
+  document.querySelectorAll(".tab-item").forEach(tab => {
+    tab.setAttribute("aria-selected", tab.dataset.tab === tabName ? "true" : "false");
+  });
+  document.querySelectorAll(".tab-panel").forEach(panel => {
+    panel.classList.toggle("active", panel.id === `panel-${tabName}`);
+  });
+}
+
+function updateStyleHints() {
+  const hint = document.getElementById("style-library-hint");
+  if (state.styleLibrary === "AI 总结竞品风格") {
+    hint.textContent = "将根据竞品链接、竞品视频或 MP4 上传内容生成风格方向。";
+  } else {
+    hint.textContent = `${state.styleLibrary} · ${state.presetStyle}`;
+  }
+}
+
+function syncDurationUI() {
+  const wrap = document.getElementById("custom-duration-wrap");
+  wrap.classList.toggle("hidden", state.durationValue !== "自定义");
+}
+
+function rerender() {
+  updateTopbar();
+  renderFlowNavStatus();
+  renderRightPanel();
+  renderMdUploadList();
+  renderMdHistoryList();
+  renderMp4UploadList();
+  renderMdMergeBanner();
+  renderUploadedAssets();
+  renderAssetGrids();
+  renderGeneratedResults();
+  renderPlatforms();
+  renderGenerationBanner();
+  renderCandidates();
+  renderPlatformStatusCards();
+  renderTokenUsage();
+  renderMetrics();
+  renderDataAssetOptions();
+  renderRecordingPanel();
+  renderDataTable();
+  renderConfigCards();
+  updateStyleHints();
+  syncDurationUI();
+  updateStepControls();
+  lucide.createIcons();
+}
+
+function generateVideos() {
+  if (!canGenerate()) return;
+  state.generation.status = "processing";
+  state.generation.progress = 10;
+  showScreen("04");
+  rerender();
+  const timer = setInterval(() => {
+    state.generation.progress += 22;
+    if (state.generation.progress >= 100) {
+      clearInterval(timer);
+      state.generation.status = "completed";
+      state.generation.progress = 100;
+      state.generation.lastRun = "刚刚";
+      state.candidates[0].status = "confirmed";
+      state.candidates[0].duration = currentDurationLabel();
+      state.candidates[1].duration = currentDurationLabel();
+      state.candidates[2].duration = currentDurationLabel();
+      rerender();
+      return;
+    }
+    rerender();
+  }, 360);
+}
+
+function openConfigModal(configKey) {
+  state.activeConfigKey = configKey;
+  const schema = configModalSchemas[configKey];
+  if (!schema) return;
+  document.getElementById("config-modal-title").textContent = schema.title;
+  document.getElementById("config-modal-subtitle").textContent = schema.subtitle;
+  document.getElementById("config-modal-status").className = "modal-status";
+  document.getElementById("config-modal-status").textContent = "";
+  document.getElementById("config-modal-fields").innerHTML = schema.fields.map(field => `
+    <div class="${field.full ? "full" : ""}">
+      <label>${field.label}</label>
+      ${field.type === "textarea"
+        ? `<textarea ${field.readonly ? "readonly" : ""}>${field.value}</textarea>`
+        : `<input type="${field.type}" value="${field.value}" ${field.readonly ? "readonly" : ""}>`}
+    </div>
+  `).join("");
+  document.getElementById("config-modal-backdrop").classList.add("open");
+}
+
+function closeConfigModal() {
+  state.activeConfigKey = null;
+  document.getElementById("config-modal-backdrop").classList.remove("open");
+}
+
+document.addEventListener("click", event => {
+  const navButton = event.target.closest(".nav-item");
+  if (navButton) {
+    showScreen(navButton.dataset.screen);
+    rerender();
+    return;
+  }
+
+  const tabButton = event.target.closest(".tab-item");
+  if (tabButton) {
+    setMaterialTab(tabButton.dataset.tab);
+    return;
+  }
+
+  if (event.target.closest("#summary-toggle")) {
+    setSummaryExpanded(!state.summaryExpanded);
+    rerender();
+    return;
+  }
+
+  const platformCard = event.target.closest(".platform-card");
+  if (platformCard && !event.target.closest("input")) {
+    const key = platformCard.dataset.platform;
+    state.platforms[key] = !state.platforms[key];
+    rerender();
+    return;
+  }
+
+  const candidateButton = event.target.closest("[data-candidate-action]");
+  if (candidateButton) {
+    const id = candidateButton.dataset.candidateId;
+    const action = candidateButton.dataset.candidateAction;
+    const target = state.candidates.find(item => item.id === id);
+    if (!target) return;
+    if (action === "confirm") {
+      state.candidates.forEach(item => {
+        item.status = item.id === id ? "confirmed" : item.status === "failed" ? "failed" : "ready";
+      });
+    }
+    if (action === "download") state.draftSavedAt = "刚刚";
+    if (action === "drive") target.driveStatus = target.driveStatus === "saved" ? "saved" : "saved";
+    if (action === "regen") {
+      target.status = "processing";
+      rerender();
+      setTimeout(() => {
+        target.status = "ready";
+        target.driveStatus = "uploading";
+        target.notes = "单候选重新生成完成，已恢复为候选结果，可重新确认或保留。";
+        rerender();
+      }, 1000);
+      return;
+    }
+    rerender();
+    return;
+  }
+
+  const mdHistoryButton = event.target.closest("[data-md-history-id]");
+  if (mdHistoryButton) {
+    const historyItem = state.mdHistory.find(item => item.id === mdHistoryButton.dataset.mdHistoryId);
+    if (!historyItem) return;
+    state.selectedMdHistoryId = historyItem.id;
+    state.mdInlineText = historyItem.content;
+    document.getElementById("md-inline-text").value = historyItem.content;
+    state.mdUploaded = true;
+    state.draftSavedAt = "刚刚";
+    rerender();
+    return;
+  }
+
+  const generatedActionButton = event.target.closest("[data-generated-action]");
+  if (generatedActionButton) {
+    const kind = generatedActionButton.dataset.generatedKind;
+    const listKey = kind === "image" ? "generatedImageResults" : "generatedVideoResults";
+    const action = generatedActionButton.dataset.generatedAction;
+    const item = state[listKey].find(entry => entry.id === generatedActionButton.dataset.generatedId);
+    if (!item) return;
+    if (action === "select") {
+      state.draftSavedAt = "刚刚";
+    }
+    if (action === "save-history") {
+      item.savedToHistory = true;
+      item.status = "已保存";
+    }
+    if (action === "delete") {
+      state[listKey] = state[listKey].filter(entry => entry.id !== item.id);
+      state.selectedAssets.delete(item.code);
+    }
+    state.draftSavedAt = "刚刚";
+    rerender();
+    return;
+  }
+
+  const configDetailButton = event.target.closest("[data-config-detail]");
+  if (configDetailButton) {
+    openConfigModal(configDetailButton.dataset.configDetail);
+    lucide.createIcons();
+    return;
+  }
+
+  if (event.target.id === "remove-mp4-upload") {
+    state.mp4Upload = null;
+    rerender();
+    return;
+  }
+
+  if (event.target.id === "page-prev" && state.currentPage > 1) {
+    state.currentPage -= 1;
+    renderDataTable();
+    return;
+  }
+
+  if (event.target.id === "page-next" && state.currentPage < totalPages()) {
+    state.currentPage += 1;
+    renderDataTable();
+    return;
+  }
+
+  if (event.target.id === "config-modal-close" || event.target.id === "config-modal-cancel") {
+    closeConfigModal();
+    return;
+  }
+
+  if (event.target.id === "config-modal-test") {
+    const status = document.getElementById("config-modal-status");
+    status.className = "modal-status info";
+    status.textContent = "正在测试连接...";
+    setTimeout(() => {
+      status.className = "modal-status success";
+      status.textContent = "测试连接成功。";
+    }, 700);
+    return;
+  }
+
+  if (event.target.id === "config-modal-save") {
+    const status = document.getElementById("config-modal-status");
+    status.className = "modal-status success";
+    status.textContent = "保存成功，配置卡片状态已更新。";
+    setTimeout(() => {
+      closeConfigModal();
+      rerender();
+    }, 700);
+    return;
+  }
+
+  if (event.target.id === "config-modal-backdrop") {
+    closeConfigModal();
+  }
+});
+
+document.addEventListener("change", event => {
+  if (event.target.matches(".asset-checkbox")) {
+    const code = event.target.dataset.assetCode;
+    if (event.target.checked) {
+      state.selectedAssets.add(code);
+    } else {
+      state.selectedAssets.delete(code);
+    }
+    rerender();
+    return;
+  }
+
+  if (event.target.id === "md-upload-input") {
+    state.mdUploaded = true;
+    state.draftSavedAt = "刚刚";
+    rerender();
+    return;
+  }
+
+  if (event.target.id === "asset-upload-input") {
+    const count = event.target.files ? event.target.files.length : 0;
+    if (count > 0) {
+      for (let index = 0; index < count; index += 1) {
+        state.uploadedAssets.push({
+          code: `UPL-${300 + state.uploadedAssets.length + index}`,
+          type: "图片",
+          note: "新上传素材，已加入当前上传预览列表。"
+        });
+      }
+      rerender();
+    }
+    return;
+  }
+
+  if (event.target.id === "mp4-upload-input") {
+    state.mp4Upload = {
+      name: "competitor-reference.mp4",
+      size: "186 MB",
+      status: "上传完成"
+    };
+    state.draftSavedAt = "刚刚";
+    rerender();
+    return;
+  }
+
+  if (event.target.id === "data-platform-select") {
+    renderRecordingPanel();
+    lucide.createIcons();
+    return;
+  }
+
+  if (event.target.id === "page-size-select") {
+    state.pageSize = Number(event.target.value);
+    state.currentPage = 1;
+    renderDataTable();
+    return;
+  }
+
+  if (event.target.id === "style-library-select") {
+    state.styleLibrary = event.target.value;
+    rerender();
+    return;
+  }
+
+  if (event.target.id === "preset-style-select") {
+    state.presetStyle = event.target.value;
+    rerender();
+    return;
+  }
+
+  if (event.target.id === "video-duration") {
+    state.durationValue = event.target.value;
+    rerender();
+    return;
+  }
+
+  if (event.target.id === "video-ratio") {
+    state.ratioValue = event.target.value;
+    rerender();
+    return;
+  }
+
+  if (event.target.id === "video-resolution") {
+    state.resolutionValue = event.target.value;
+    rerender();
+    return;
+  }
+
+  if (event.target.id === "text-model") {
+    state.textModelValue = event.target.value;
+    rerender();
+    return;
+  }
+});
+
+document.getElementById("md-inline-text").addEventListener("input", event => {
+  state.mdInlineText = event.target.value;
+  renderMdMergeBanner();
+  document.getElementById("btn-generate").disabled = !canGenerate();
+});
+
+document.getElementById("custom-duration-input").addEventListener("input", event => {
+  const value = Math.max(5, Math.min(180, Number(event.target.value || 5)));
+  state.customDuration = value;
+  renderRightPanel();
+});
+
+document.getElementById("btn-prev").addEventListener("click", () => {
+  const index = flowScreens.indexOf(state.currentScreen);
+  if (index > 0) {
+    showScreen(flowScreens[index - 1]);
+    rerender();
+  }
+});
+
+document.getElementById("btn-next").addEventListener("click", () => {
+  const index = flowScreens.indexOf(state.currentScreen);
+  if (index >= 0 && index < flowScreens.length - 1) {
+    showScreen(flowScreens[index + 1]);
+    rerender();
+  }
+});
+
+document.getElementById("btn-save-draft").addEventListener("click", () => {
+  state.draftSavedAt = "刚刚";
+  rerender();
+});
+
+document.getElementById("btn-generate").addEventListener("click", generateVideos);
+
+document.getElementById("btn-track").addEventListener("click", () => {
+  state.trackingStarted = true;
+  state.draftSavedAt = "刚刚";
+  rerender();
+});
+
+document.getElementById("btn-save-config").addEventListener("click", () => {
+  state.draftSavedAt = "刚刚";
+  rerender();
+});
+
+setMaterialTab("shopify");
+setSummaryExpanded(false);
+showScreen("01");
+rerender();
+</script>
+<script src="/api-client.js"></script>
+</body>
+</html>
+
+
+
