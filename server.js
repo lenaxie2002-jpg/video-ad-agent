@@ -782,8 +782,6 @@ function normalizeShopifyProductFromVariantEdge(edge) {
     sku: variant.sku,
     variantTitle: variant.title,
     price: variant.price,
-    weight: variant.weight,
-    weightUnit: variant.weightUnit,
     imageUrl: image && image.url,
     imageAlt: image && image.altText,
     images,
@@ -804,8 +802,6 @@ async function searchShopifyBySkuOrText(q) {
             price
             image { url altText }
             selectedOptions { name value }
-            weight
-            weightUnit
             product {
               id
               title
